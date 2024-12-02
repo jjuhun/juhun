@@ -1,176 +1,178 @@
 import cv2 as cv
 import numpy as np
-import threading, time
-import SDcar 
+import threading
+import time
+import SDcar
 
-speed = 40
-epsilon = 0.0001
+# 상수 및 전역 변수
+SPEED = 40  # 속도
+EPSILON = 0.0001  # 오차 허용 범위
+ENABLE_LINE_TRACING = False  # 라인 추적 활성화 여부
+IS_RUNNING = True  # 프로그램 실행 상태
+MOMENT = np.array([0, 0, 0])  # 물체의 중심 좌표 기록용
+
+# 라인 추적을 위한 그리드 설정
+V_X = 320  # 화면의 가로 크기
+V_Y = 240  # 화면의 세로 크기
+V_X_GRID = [int(V_X * i / 10) for i in range(1, 10)]  # 그리드 라인 위치 설정
+
+# 자동차 인스턴스
+car = SDcar.Drive()
 
 def func_thread():
-    i = 0
+    """프로그램을 계속 실행하기 위한 쓰레드 함수."""
+    count = 0
     while True:
-        # print("alive!!")    
         time.sleep(1)
-        i = i+1
-        if is_running is False:
+        count += 1
+        if not IS_RUNNING:
             break
 
 def key_cmd(which_key):
-    # print('which_key', which_key)
+    """키 입력에 따른 자동차 제어."""
+    global ENABLE_LINE_TRACING
     is_exit = False
-    global enable_linetracing
+
     if which_key & 0xFF == ord('w'):
-        print('up')
-        car.motor_go(speed)
+        print('앞으로 이동')
+        car.motor_go(SPEED)
     elif which_key & 0xFF == ord('s'):
-        print('down')
-        car.motor_back(speed)
+        print('뒤로 이동')
+        car.motor_back(SPEED)
     elif which_key & 0xFF == ord('a'):
-        print('left')     
-        car.motor_left(speed)   
+        print('왼쪽으로 회전')
+        car.motor_left(SPEED)
     elif which_key & 0xFF == ord('d'):
-        print('right')   
-        car.motor_right(speed)            
-    elif which_key & 0xFF == ord('q'):  # stop
+        print('오른쪽으로 회전')
+        car.motor_right(SPEED)
+    elif which_key & 0xFF == ord('q'):  # 정지
         car.motor_stop()
-        print('stop')
-        is_exit = True   
-    elif which_key & 0xFF == ord('e'):  # linetracing start
-        enable_linetracing = True
-        print('enable_linetracing: ',enable_linetracing)
-    elif which_key & 0xFF == ord('r'):  # linetracing stop
-        enable_linetracing = False
+        print('정지')
+        is_exit = True
+    elif which_key & 0xFF == ord('e'):  # 라인 추적 시작
+        ENABLE_LINE_TRACING = True
+        print(f'라인 추적 활성화: {ENABLE_LINE_TRACING}')
+    elif which_key & 0xFF == ord('r'):  # 라인 추적 중지
+        ENABLE_LINE_TRACING = False
         car.motor_stop()
-        print('enable_linetracing 2: ',enable_linetracing)       
-    return is_exit  
+        print(f'라인 추적 비활성화: {ENABLE_LINE_TRACING}')
+
+    return is_exit
 
 def detect_maskY_HSV(frame):
-    crop_hsv = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
-    crop_HSV = cv.GaussianBlur(crop_hsv, (5,5), cv.BORDER_DEFAULT)
-    mask_Y = cv.inRange(crop_hsv,(25,50,100),(25,255,255))
-    return mask_Y
+    """HSV 색 공간을 사용하여 노란색 마스크를 감지."""
+    hsv_frame = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
+    blurred_hsv = cv.GaussianBlur(hsv_frame, (5, 5), cv.BORDER_DEFAULT)
+    mask_yellow = cv.inRange(blurred_hsv, (25, 50, 100), (25, 255, 255))
+    return mask_yellow
 
 def detect_maskY_BGR(frame):
-    B = frame[:,:,0]
-    G = frame[:,:,1]
-    R = frame[:,:,2]
-    Y = np.zeros_like(G, np.uint8)
-    Y = G*0.5 + R*0.5 - B*0.7
-    Y = Y.astype(np.uint8)
-    Y = cv.GaussianBlur(Y, (5,5), cv.BORDER_DEFAULT)
-    _, mask_Y = cv.threshold(Y, 100, 255, cv.THRESH_BINARY)
-    return mask_Y
+    """BGR 색 공간을 사용하여 노란색 마스크를 감지."""
+    b, g, r = cv.split(frame)
+    yellow = (g * 0.5 + r * 0.5 - b * 0.7).astype(np.uint8)
+    yellow_blurred = cv.GaussianBlur(yellow, (5, 5), cv.BORDER_DEFAULT)
+    _, mask_yellow = cv.threshold(yellow_blurred, 100, 255, cv.THRESH_BINARY)
+    return mask_yellow
 
 def show_grid(img):
-    h, _, _ = img.shape
-    for x in v_x_grid:
-        cv.line(img, (x, 0), (x, h), (0, 255, 0), 1, cv.LINE_4)
+    """디버깅을 위해 이미지에 그리드를 표시."""
+    height, _, _ = img.shape
+    for x in V_X_GRID:
+        cv.line(img, (x, 0), (x, height), (0, 255, 0), 1, cv.LINE_4)
 
 def line_tracing(cx):
-    global moment
-    global v_x
-    tolerance = 0.1
+    """라인 추적 로직, 자동차의 위치를 기반으로 제어."""
+    global MOMENT
+    tolerance = 0.1  # 허용 오차
     diff = 0
 
-    if moment[0] != 0 and moment[1] != 0 and moment[2] != 0:
-        avg_m = np.mean(moment)
-        diff = np.abs(avg_m - cx) / v_x
+    if MOMENT[0] != 0 and MOMENT[1] != 0 and MOMENT[2] != 0:
+        avg_moment = np.mean(MOMENT)
+        diff = np.abs(avg_moment - cx) / V_X
 
-    print('diff ={:.4f}'.format(diff))
+    print(f'차이: {diff:.4f}')
 
     if diff <= tolerance:
-        moment[0] = moment[1]
-        moment[1] = moment[2]
-        moment[2] = cx
+        MOMENT[0] = MOMENT[1]
+        MOMENT[1] = MOMENT[2]
+        MOMENT[2] = cx
 
-        if v_x_grid[1] <= cx < v_x_grid[2]:
-            car.motor_go(speed)
-            print('go')
-        if v_x_grid[1] >= cx:
-            car.motor_left(speed)
-            print('turn left')
-        if v_x_grid[2] <= cx:
-            car.motor_right(speed)
-            print('turn right')
-
+        if V_X_GRID[1] <= cx < V_X_GRID[2]:
+            car.motor_go(SPEED)
+            print('앞으로 이동')
+        elif cx < V_X_GRID[1]:
+            car.motor_left(SPEED)
+            print('왼쪽으로 회전')
+        elif cx >= V_X_GRID[2]:
+            car.motor_right(SPEED)
+            print('오른쪽으로 회전')
     else:
-        car.motor_go(speed)
-        print('go')
-        moment = [0,0,0]
-        
+        car.motor_go(SPEED)
+        print('앞으로 이동')
+        MOMENT = [0, 0, 0]
+
 def main():
+    """카메라 처리 및 자동차 제어 메인 함수."""
+    global IS_RUNNING, ENABLE_LINE_TRACING
 
     camera = cv.VideoCapture(0)
-    camera.set(cv.CAP_PROP_FRAME_WIDTH,v_x) 
-    camera.set(cv.CAP_PROP_FRAME_HEIGHT,v_y)
-
-
-
+    camera.set(cv.CAP_PROP_FRAME_WIDTH, V_X)
+    camera.set(cv.CAP_PROP_FRAME_HEIGHT, V_Y)
 
     try:
-        while( camera.isOpened() ):
+        while camera.isOpened():
             ret, frame = camera.read()
-            frame = cv.flip(frame,-1)
-            cv.imshow('camera',frame)
+            if not ret:
+                break
 
-            # image processing start here
-            crop_img = frame[180:,:]
-           
-            maskY = detect_maskY_BGR(crop_img)
+            frame = cv.flip(frame, -1)
+            cv.imshow('Camera', frame)
 
-            contours, _ = cv.findContours(maskY, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+            # 라인 추적을 위한 이미지 처리
+            crop_img = frame[180:, :]
+            mask_y = detect_maskY_BGR(crop_img)
 
-            if len(contours) > 0:
-                c = max(contours, key=cv.contourArea)
-                m = cv.moments(c)
+            contours, _ = cv.findContours(mask_y, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+            if contours:
+                largest_contour = max(contours, key=cv.contourArea)
+                moments = cv.moments(largest_contour)
 
-                cx = int(m['m10']/m['m00'])
-                cy = int(m['m01']/m['m00'])
-                cv.circle(crop_img, (cx,cy), 3, (0,0,255),-1)
-                cv.drawContours(crop_img, contours, -1, (0, 255, 0), 3)
+                if moments['m00'] != 0:
+                    cx = int(moments['m10'] / moments['m00'])
+                    cy = int(moments['m01'] / moments['m00'])
+                    cv.circle(crop_img, (cx, cy), 3, (0, 0, 255), -1)
+                    cv.drawContours(crop_img, contours, -1, (0, 255, 0), 3)
+                    cv.putText(crop_img, str(cx), (10, 10), cv.FONT_HERSHEY_DUPLEX, 0.5, (0, 255, 0))
 
-                cv.putText(crop_img, str(cx), (10,10), cv.FONT_HERSHEY_DUPLEX, 0.5, (0,255,0))
+                    if ENABLE_LINE_TRACING:
+                        line_tracing(cx)
 
-                if enable_linetracing == True:
-                    line_tracing(cx)
-                
+            # 디버깅용 그리드 표시
             show_grid(crop_img)
+            cv.imshow('Processed Image', cv.resize(crop_img, dsize=(0, 0), fx=2, fy=2))
 
-            cv.imshow('crop_img', cv.resize(crop_img, dsize=(0,0), fx=2, fy=2))
-
-            # image processing end here
-
+            # 키 입력 처리
             is_exit = False
             which_key = cv.waitKey(20)
             if which_key > 0:
-                is_exit = key_cmd(which_key)    
-            if is_exit is True:
+                is_exit = key_cmd(which_key)
+
+            if is_exit:
                 cv.destroyAllWindows()
                 break
 
     except Exception as e:
-        print(e)
-        global is_running
-        is_running = False
+        print(f"오류: {e}")
+        IS_RUNNING = False
 
 if __name__ == '__main__':
+    # 백그라운드 쓰레드 시작
+    threading.Thread(target=func_thread, daemon=True).start()
 
-    v_x = 320
-    v_y = 240
-    v_x_grid = [int(v_x*i/10) for i in range(1,10)]
+    print(V_X_GRID)
+    main()
 
-    moment = np.array([0,0,0])
-
-    print(v_x_grid)
-
-    t_task1 = threading.Thread(target = func_thread)
-    t_task1.start()
-
-    car = SDcar.Drive()
-    
-    is_running = True
-    enable_linetracing = False
-    main() 
-    is_running = False
+    # 정리
+    IS_RUNNING = False
     car.clean_GPIO()
-    print('end vis')
+    print('프로그램 종료')
