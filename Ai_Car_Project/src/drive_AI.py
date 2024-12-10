@@ -218,7 +218,7 @@ if __name__ == '__main__':
     print(v_x_grid)
     moment = np.array([0, 0, 0])
 
-    model_path = '/home/juhun/juhun/Ai_Car_Project/models/lane_navigation_20241210_0904.h5'
+    model_path = '/home/juhun/juhun/Ai_Car_Project/models/lane_navigation_20241210_1313.h5'
     # model_path = 'my_checkpoint/lane_navigation_ce_stable.h5'     # tf1.15  
     # model_path = 'my_checkpoint/lane_navigation_20221115_0808.h5'  # tf1.15  
     #model_path = 'my_checkpoint/lane_navigation_20221115_0815.h5'  # tf2.2  
