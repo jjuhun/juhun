@@ -25,31 +25,38 @@ def save_img(frame, angle):
     print('filename', filename)
     cv.imwrite(filename, frame)
     filecnt+=1
-
 def key_cmd(which_key, frame):
     print('which_key', which_key)
     is_exit = False
-    if which_key & 0xFF == 184:
+    if which_key & 0xFF == 82:  # 직진
         print('up')
-        car.motor_go(speed)
-        save_img(frame, 0)
-    elif which_key & 0xFF == 178:
+        car.motor_go(speed)  # 차를 앞으로 이동
+        time.sleep(0.5)  # 0.5초 동안만 실행
+        car.motor_stop()  # 차를 멈추기
+    elif which_key & 0xFF == 84: # 후진
         print('down')
-        car.motor_back(speed)
-    elif which_key & 0xFF == 180:
+        car.motor_back(speed)  # 차를 뒤로 이동
+        time.sleep(0.5)  # 0.5초 동안만 실행
+        car.motor_stop()  # 차를 멈추기
+    elif which_key & 0xFF == 81:
         print('left')     
-        car.motor_left(speed_rot)  
-        save_img(frame, 1)
-    elif which_key & 0xFF == 182:
+        car.motor_left(speed_rot)  # 차를 왼쪽으로 회전
+        car.left_mode_led()
+        time.sleep(0.5)  # 0.5초 동안만 실행
+        car.motor_stop()  # 차를 멈추기
+    elif which_key & 0xFF == 83:
         print('right')   
-        car.motor_right(speed_rot)           
-        save_img(frame, 2)
-    elif which_key & 0xFF == 181:
+        car.motor_right(speed_rot)  # 차를 오른쪽으로 회전
+        car.right_mode_led()
+        time.sleep(0.5)  # 0.5초 동안만 실행
+        car.motor_stop()  # 차를 멈추기
+    elif which_key & 0xFF == 32:
         car.motor_stop()
         print('stop')   
     elif which_key & 0xFF == ord('q'):  
         car.motor_stop()
-        print('exit')        
+        print('exit')
+        car.motor_stop()  # 차 멈추기        
         is_exit = True
     elif which_key & 0xFF == ord('x'):  
         save_img(frame, 0)
@@ -85,9 +92,12 @@ def detect_maskY_BGR(frame):
 def main():
 
     camera = cv.VideoCapture(0)
+
     camera.set(cv.CAP_PROP_FRAME_WIDTH,v_x) 
     camera.set(cv.CAP_PROP_FRAME_HEIGHT,v_y)
-    
+    if not camera.isOpened():
+       print("Error: Camera could not be opened")
+       return  # 카메라가 열리지 않으면 main 함수 종료
     try:
         while( camera.isOpened() ):
             ret, frame = camera.read()
