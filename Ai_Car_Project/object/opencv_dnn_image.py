@@ -13,6 +13,7 @@ model = cv.dnn.readNetFromTensorflow(model='frozen_inference_graph.pb',\
 
 image = cv.imread('person.jpeg')
 image_height, image_width, _ = image.shape
+print(image.shape)
 # create blob from image
 blob = cv.dnn.blobFromImage(image=image, size=(300, 300), swapRB=True)
 # set the blob to the model
@@ -28,23 +29,23 @@ for detection in output[0, 0, :, :]:
    # draw bounding boxes only if the detection confidence is above...
    # ... a certain threshold, else skip
    if confidence > .4:
-       # get the class id
-       class_id = detection[1]
-       # map the class id to the class
-       class_name = class_names[int(class_id)-1]
-       color = COLORS[int(class_id)]
-       # get the bounding box coordinates
-       box_x = detection[3] * image_width
-       box_y = detection[4] * image_height
-       # get the bounding box width and height
-       box_width = detection[5] * image_width
-       box_height = detection[6] * image_height
-       # draw a rectangle around each detected object
-       cv.rectangle(image, (int(box_x), int(box_y)), (int(box_width), int(box_height)), color, thickness=2)
-       # put the FPS text on top of the frame
-       cv.putText(image, class_name, (int(box_x), int(box_y - 5)), cv.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+        # get the class id
+        class_id = detection[1]
+        # map the class id to the class
+        class_name = class_names[int(class_id)-1]
+        if class_name == 'fire hydrant':  # 소화전만 탐지
+            color = COLORS[int(class_id)]  # 클래스 ID에 맞는 색상
+            box_x = detection[3] * image_width  # 바운딩 박스 x 좌표
+            box_y = detection[4] * image_height  # 바운딩 박스 y 좌표
+            box_width = detection[5] * image_width  # 바운딩 박스 너비
+            box_height = detection[6] * image_height  # 바운딩 박스 높이
+
+            # draw a rectangle around each detected object
+            cv.rectangle(image, (int(box_x), int(box_y)), (int(box_width), int(box_height)), color, thickness=2)
+            # put the FPS text on top of the frame
+            cv.putText(image, class_name, (int(box_x), int(box_y - 5)), cv.FONT_HERSHEY_SIMPLEX, 1, color, 2)
   
-#cv.imshow('image', image)
+cv.imshow('image', image)
 cv.imwrite('person_result.jpeg', image)
 #cv.waitKey(0)
 #cv.destroyAllWindows()

@@ -152,7 +152,6 @@ def drive_AI(img):
     res = model.predict(img)[0]
     #print('res', res)
     steering_angle = np.argmax(np.array(res))
-    print('steering_angle', steering_angle)
     if steering_angle == 0:
         # print("go")
         speedSet = 60
@@ -173,18 +172,20 @@ def drive_AI(img):
 
 def main():
     camera = cv.VideoCapture(0)
-
     camera.set(cv.CAP_PROP_FRAME_WIDTH,v_x) 
     camera.set(cv.CAP_PROP_FRAME_HEIGHT,v_y)
-    
     try:
         while( camera.isOpened() ):
             ret, frame = camera.read()
+            frame = frame.reshape((240, 320, 3))
             frame = cv.flip(frame,-1)
             # cv.imshow('camera',frame)
             # image processing start here
             crop_img = frame[int(v_y/2):,:]
+            
             crop_img = cv.resize(crop_img, (200, 66))
+
+            # crop_img = cv.resize(crop_img, (200, 66))
             cv.imshow('crop_img ', cv.resize(crop_img, dsize=(0,0), fx=2, fy=2))
 
             if enable_AIdrive == True:
